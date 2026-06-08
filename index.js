@@ -26,19 +26,19 @@ const VAAPI_DEVICE = process.env.VAAPI_DEVICE || '/dev/dri/renderD128';
 
 const HLS_OUTPUT_OPTIONS = ['-f hls', '-hls_time 2', '-hls_list_size 2', '-hls_flags delete_segments'];
 
-// VA-API requires hwupload+format filter appended to the scale filter chain
 function buildComplexFilter() {
-  const scaleFilter = `[0:v]scale=${VIEW_DIMENSIONS.width}:${VIEW_DIMENSIONS.height}`;
+  const w = VIEW_DIMENSIONS.width;
+  const h = VIEW_DIMENSIONS.height;
   const videoFilter = VIDEO_ENCODER === 'h264_vaapi'
-    ? `${scaleFilter},hwupload,format=nv12[v]`
-    : `${scaleFilter}[v]`;
+    ? `[0:v]format=nv12,hwupload,scale_vaapi=${w}:${h}[v]`
+    : `[0:v]scale=${w}:${h}[v]`;
   return [videoFilter, '[1:a]volume=0.5[a]'];
 }
 
 function buildVideoOutputOptions() {
   const audio = ['-map [v]', '-map [a]', '-c:a aac', '-b:a 128k', '-b:v 1000k'];
   switch (VIDEO_ENCODER) {
-    case 'h264_qsv':   return [...audio, '-c:v h264_qsv',              ...HLS_OUTPUT_OPTIONS];
+    case 'h264_qsv':   return [...audio, '-c:v h264_qsv', ...HLS_OUTPUT_OPTIONS];
     case 'h264_nvenc': return [...audio, '-c:v h264_nvenc', '-preset p1', ...HLS_OUTPUT_OPTIONS];
     case 'h264_vaapi': return [...audio, '-c:v h264_vaapi',             ...HLS_OUTPUT_OPTIONS];
     default:           return [...audio, '-c:v libx264', '-preset ultrafast', ...HLS_OUTPUT_OPTIONS];
@@ -256,16 +256,10 @@ async function startTranscoding() {
   await startBrowser();
   createAudioInputFile();
   ffmpegStream = new PassThrough();
-  const proc = ffmpeg()
+  ffmpegProc = ffmpeg()
     .input(ffmpegStream)
     .inputFormat('image2pipe')
-    .inputOptions([`-framerate ${FRAME_RATE}`]);
-
-  if (VIDEO_ENCODER === 'h264_vaapi') {
-    proc.inputOptions([`-vaapi_device ${VAAPI_DEVICE}`]);
-  }
-
-  ffmpegProc = proc
+    .inputOptions([`-framerate ${FRAME_RATE}`])
     .input(path.join(__dirname,'audio_list.txt'))
     .inputOptions(['-f concat','-safe 0','-stream_loop -1','-vcodec png'])
     .complexFilter(buildComplexFilter())
