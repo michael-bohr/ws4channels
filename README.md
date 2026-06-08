@@ -109,9 +109,44 @@ Environment Variables
 	
 	•  VIEW_MODE: One of: `standard`, `wide` (default), `wide-enhanced` or `portrait-enhanced`. These values correspond to the modes available in ws4kp, with the last two only available in ws4kp v7.0+. Video sizes are 640x480, 1280x720 or 720x1280 to match.
 
-## Hardware Acceleration, ARM Multi Arch Support
+	•  VIDEO_ENCODER: FFmpeg video encoder (default: `libx264`). Use `h264_qsv` for Intel, `h264_nvenc` for NVIDIA, `h264_vaapi` for AMD/VA-API. See Hardware Acceleration section below.
 
-Currently hardware encoding and Multi Arch are not supported. 
+	•  VAAPI_DEVICE: VA-API render device path (default: `/dev/dri/renderD128`). Only used when `VIDEO_ENCODER=h264_vaapi`.
+
+## Hardware Acceleration
+
+Hardware encoding is supported via the `VIDEO_ENCODER` environment variable. The default is software encoding (`libx264`).
+
+| `VIDEO_ENCODER` value | Hardware | Notes |
+|---|---|---|
+| `libx264` | None (default) | Software encoding, works everywhere |
+| `h264_qsv` | Intel Quick Sync | Pass through `/dev/dri` device |
+| `h264_nvenc` | NVIDIA GPU | Requires NVIDIA Container Toolkit |
+| `h264_vaapi` | AMD / generic VA-API | Pass through `/dev/dri` device |
+
+For Intel QSV or VA-API, pass the render device into the container:
+
+```bash
+docker run -d \
+  --name ws4channels \
+  --device /dev/dri:/dev/dri \
+  -e VIDEO_ENCODER=h264_qsv \
+  ...
+```
+
+For NVIDIA:
+
+```bash
+docker run -d \
+  --name ws4channels \
+  --gpus all \
+  -e VIDEO_ENCODER=h264_nvenc \
+  ...
+```
+
+The `VAAPI_DEVICE` environment variable can override the default VA-API device path (default: `/dev/dri/renderD128`).
+
+**Note:** Hardware encoding significantly reduces CPU usage compared to software encoding.
 
 
 ### Accessing the Stream
